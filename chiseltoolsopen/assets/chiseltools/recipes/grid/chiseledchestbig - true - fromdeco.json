@@ -1,0 +1,11 @@
+{
+	ingredientPattern: "HHH",
+	ingredients: {
+		
+		"H": { type: "block", code: "chiseledchestnerfed-east", quantity: 1 }
+	},
+	width: 3,
+	height: 1,
+	name: "Decorative Chest",
+	output: { type: "block", code: "chiseledchest-east"  }
+}

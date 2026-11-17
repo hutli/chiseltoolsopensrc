@@ -1,0 +1,27 @@
+{
+	code: "cttiles",
+	shape: { base: "block/basic/tiles" },
+	attributes: {
+		handbook: {
+			exclude: true
+		}
+	},
+	variantgroups: [
+		{ code: "num", states: ["oct","check","check4","checknest"] },
+	],
+	drawtype: "cube",
+	creativeinventory: { "general": ["*"], "chiseltools": ["*"] },
+	blockmaterial: "Stone",
+	replaceable: 900,
+	lightAbsorption: 99,
+	textures: {
+		all: { base: "tiles-{num}" }
+	},
+	resistance: 1,
+	sideopaque: {
+		all: true
+	},
+	sidesolid: {
+		all: true
+	}
+}
