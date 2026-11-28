@@ -261,22 +261,15 @@ namespace chiseltools.src
                     if (cyclemat != gotmat)
                     {
                         //we have a new material possibility
+                        ChiselToolLoader.MicroBlockSnapshot before = ChiselToolLoader.Snapshot(bmb);
                         for (int mc = 0; mc < bmb.BlockIds.Length; mc++)
                         {
                             if (bmb.BlockIds[mc] == gotmat)
                             {
                                 bmb.BlockIds[mc] = cyclemat;
+                                ChiselToolLoader.UpdateBlock(bmb, before);
                                 handling = EnumHandHandling.Handled;
-                                if (api is ICoreServerAPI)
-                                {
-                                    
-                                    bmb.MarkDirty(true);
-                                    bmb.Block.OnNeighbourBlockChange(api.World, blockSel.Position, blockSel.Position);
-                                    //we need a client side relight command
-                                    
-                                }
-                               
-                                    return;
+                                return;
                                 //todo: check for duplicate materials!!
                             }
                         }
@@ -293,7 +286,7 @@ namespace chiseltools.src
                         
                             bool full = true;
 
-                        bmb.AddMaterial(byPlayer.Entity.Api.World.GetBlock(matid), out full);
+                        ChiselToolLoader.AddMaterial(bmb, byPlayer.Entity.Api.World.GetBlock(matid), out full);
                         handling = EnumHandHandling.Handled;
                         return;
                         blockIndexAlreadyInStack = bmb.BlockIds.IndexOf(matid);
@@ -331,8 +324,7 @@ namespace chiseltools.src
                                     materialslots[0].MarkDirty();
                                     founddye = true;
                                     bool full2 = false;
-                                    bmb.AddMaterial(byPlayer.Entity.Api.World.GetBlock(matid), out full2);
-                                    bmb.RebuildCuboidList();
+                                    ChiselToolLoader.AddMaterial(bmb, byPlayer.Entity.Api.World.GetBlock(matid), out full2);
                                     blockIndexAlreadyInStack = bmb.BlockIds.IndexOf(matid);
                                     byEntity.Api.World.PlaySoundAt(new AssetLocation("sounds/effect/water-fill"), blockSel.Position.X, blockSel.Position.Y, blockSel.Position.Z, byPlayer, true, 12, 1);
                                     return;
@@ -386,7 +378,7 @@ namespace chiseltools.src
                             if (founddye)
                             {
                                 bool full2 = false;
-                                bmb.AddMaterial(byPlayer.Entity.Api.World.GetBlock(matid), out full2);
+                                ChiselToolLoader.AddMaterial(bmb, byPlayer.Entity.Api.World.GetBlock(matid), out full2);
                                 blockIndexAlreadyInStack = bmb.BlockIds.IndexOf(matid);
                                 byEntity.Api.World.PlaySoundAt(new AssetLocation("sounds/effect/water-fill"), blockSel.Position.X, blockSel.Position.Y, blockSel.Position.Z, byPlayer, true, 12, 1);
                                 handling = EnumHandHandling.Handled;
@@ -455,7 +447,7 @@ namespace chiseltools.src
 
             if (carvingTime)
             {
-                be.BlockIds = (int[])be.BlockIds.Append(api.World.GetBlock(new AssetLocation("creativeglow-35")).Id);
+                ChiselToolLoader.UpdateChiseledBlock(be, (int[])be.BlockIds.Append(api.World.GetBlock(new AssetLocation("creativeglow-35")).Id), null);
             }
 
             handling = EnumHandHandling.PreventDefaultAction;

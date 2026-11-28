@@ -508,11 +508,7 @@ namespace chisel.src
                 if (fromplayer != null) { sapi.SendMessage(fromplayer, 0, "True Chisel failure in PantographDataToBlockEntity", EnumChatType.CommandError); }
                 return;
             }
-            bec.BlockIds = bids;
-            bec.VoxelCuboids = voxc;
-            bec.BlockName = networkmessage.name;
-            bec.MarkDirty(true);
-            Relight(sapi, networkmessage.pos);
+            UpdateChiseledBlock(bec, bids, voxc, networkmessage.name);
         }
 
         //Used by pantograph to transfrom a chiseled block in to a function chiseled block
@@ -611,10 +607,7 @@ namespace chisel.src
             sapi.World.BlockAccessor.SetBlock(chiselblockid, data.pos);
             BlockEntityChisel bec = sapi.World.BlockAccessor.GetBlockEntity(data.pos) as BlockEntityChisel;
             if (bec == null) { return; }
-            bec.BlockIds = data.matdata.ToArray();
-            bec.VoxelCuboids = new List<uint>(data.voxeldata);
-            bec.BlockName = data.name;
-            bec.MarkDirty(true);
+            UpdateChiseledBlock(bec, data.matdata.ToArray(), new List<uint>(data.voxeldata), data.name);
         }
         public static string copyprotectedblockname = "chiseltools:copyprotectedblock";
 
@@ -646,8 +639,7 @@ namespace chisel.src
             try { copiedvoxels = SerializerUtil.Deserialize<List<uint>>(data.voxeldata); }
             catch { return; }
             if (copiedvoxels == null) { return; }
-            bmb.VoxelCuboids = copiedvoxels;
-            bmb.MarkDirty(true);
+            UpdateChiseledBlock(bmb, null, copiedvoxels);
             //HERE USE DATA TO PASTE
         }
 
@@ -688,110 +680,123 @@ namespace chisel.src
             return bids;
         }
 
-        /// <summary>
-        /// Check a chiseled block and a new material to see if block needs to be relit
-        /// </summary>
-        /// <param name="sapi"></param>
-        /// <param name="newmat">New Material</param>
-        /// <param name="checklocation">Chiseled Blocks location</param>
-        /*public static void Relight(ICoreServerAPI sapi, Block newmat, BlockPos checklocation)
+        public sealed class MicroBlockSnapshot
         {
-            if (sapi == null) { return; } //server side only
-            if (checklocation == null) { return; } //why have you done this?
-            if (newmat.LightHsv[2] == 0) { return; } //new material isn't a light block ignore
-            BlockEntityMicroBlock bemb = sapi.World.BlockAccessor.GetBlockEntity(checklocation) as BlockEntityMicroBlock;
-            if (bemb == null) { return; } //whoops this isn't even a chiseled blocok
-            if (bemb.BlockIds == null || bemb.BlockIds.Length == 0) { return; } //this shouldn't happen but we gots to be null checking
-            //See if this mat already in stack
-            foreach (int checkid in bemb.BlockIds)
-            {
-                if (checkid == newmat.BlockId) { return; }
-            }
-
-            //this block needs to be relit so we need to copy it
-            // what's this? sapi.World.BlockAccessor.RemoveBlockLight
-            sapi.World.BlockAccessor.SetBlock(bemb.Block.BlockId, checklocation);
-            sapi.World.BlockAccessor.RedrawNeighbouringChunk(checklocation);
-
-        }*/
-
-        /// <summary>
-        /// Try to force relight of block if any material is a light
-        /// </summary>
-        /// <param name="sapi"></param>
-        /// <param name="checklocation"></param>
-        public static void Relight(ICoreServerAPI sapi, BlockPos checklocation)
-        {
-            if (sapi == null) { return; } //server side only
-            if (checklocation == null) { return; } //why have you done this?
-
-            BlockEntityMicroBlock bemb = sapi.World.BlockAccessor.GetBlockEntity(checklocation) as BlockEntityMicroBlock;
-            if (bemb == null) { return; } //whoops this isn't even a chiseled blocok
-            sapi.World.BlockAccessor.SetBlock(bemb.Block.BlockId, checklocation);
-            
-            //sapi.World.BlockAccessor.RedrawNeighbouringChunk(checklocation);
-            return;
-            /*
-            if (bemb.BlockIds == null || bemb.BlockIds.Length == 0) { return; } //this shouldn't happen but we gots to be null checking
-
-            //See if this mat already in stack
-            bool dolight = false;
-            foreach (int checkid in bemb.BlockIds)
-            {
-                if (sapi.World.GetBlock(checkid).LightHsv[2] != 0) { dolight = true; break; }
-            }
-
-            if (!dolight) { return; }
-
-            //this block needs to be relit so we need to copy it
-            // what's this? sapi.World.BlockAccessor.RemoveBlockLight
-            sapi.World.BlockAccessor.SetBlock(bemb.Block.BlockId, checklocation);
-            sapi.World.BlockAccessor.RedrawNeighbouringChunk(checklocation);
-            */
+            public int[] BlockIds;
+            public uint[] Voxels;
+            public ushort[] Quantities;
+            public string Name;
+            public int Absorption;
+            public byte[] Hsv;
         }
 
-        /// <summary>
-        /// Force a relight from client side
-        /// </summary>
-        /// <param name="capi"></param>
-        /// <param name="pos"></param>
-        /*public static void Relight(ICoreClientAPI capi, BlockPos checklocation)
+        public static MicroBlockSnapshot Snapshot(BlockEntityMicroBlock bmb) => new MicroBlockSnapshot
         {
-            //we'll do all the checks first so server doesn't need to be bothered
-            if (capi == null) { return; } //client side only
-            if (checklocation == null) { return; } //why have you done this?
+            BlockIds   = bmb.BlockIds?.ToArray(),
+            Voxels     = bmb.VoxelCuboids?.ToArray(),
+            Quantities = (bmb as BlockEntityChisel)?.AvailMaterialQuantities?.ToArray(),
+            Name       = bmb.BlockName,
+            Absorption = bmb.GetLightAbsorption(),
+            Hsv        = bmb.GetLightHsv(bmb.Api.World.BlockAccessor),
+        };
 
-            BlockEntityMicroBlock bemb = capi.World.BlockAccessor.GetBlockEntity(checklocation) as BlockEntityMicroBlock;
-            if (bemb == null) { return; } //whoops this isn't even a chiseled blocok
-            if (bemb.BlockIds == null || bemb.BlockIds.Length == 0) { return; } //this shouldn't happen but we gots to be null checking
+        private static bool Same<T>(T[] a, IEnumerable<T> b) => a == null ? b == null : b != null && a.SequenceEqual(b);
 
-            //See if this mat already in stack
-            bool dolight = false;
-            foreach (int checkid in bemb.BlockIds)
+        public static bool UpdateBlock(BlockEntityMicroBlock bmb, MicroBlockSnapshot before)
+        {
+            IBlockAccessor ba = bmb.Api.World.BlockAccessor;
+            void Log(string msg) => bmb.Api.Logger.Notification($"[lightfix] side={bmb.Api.Side} pos=({bmb.Pos}) {msg}");
+
+            bool voxelsChanged     = !Same(before.Voxels, bmb.VoxelCuboids);
+            bool materialsChanged  = !Same(before.BlockIds, bmb.BlockIds);
+            bool quantitiesChanged = !Same(before.Quantities, (bmb as BlockEntityChisel)?.AvailMaterialQuantities);
+            bool nameChanged       = before.Name != bmb.BlockName;
+
+            if (!voxelsChanged && !materialsChanged)
             {
-                if (capi.World.GetBlock(checkid).LightHsv[2] != 0) { dolight = true; break; }
-            }
-
-            if (!dolight) { return; }
-
-            //*******HERE WE NEED TO SEND A MESSAGE TO THE SERVER
-            (ChiselToolLoader.loader.pastenet as IClientNetworkChannel).SendPacket(checklocation);
-        }*/
-
-        /*private void RequestRelight(IPlayer fromplayer,BlockPos checklocation)
-        {
-            if (fromplayer == null||checklocation==null) { return; }
-            
-            if (sapi != null) {
-                if (!fromplayer.Entity.World.Claims.TryAccess(fromplayer, checklocation, EnumBlockAccessFlags.BuildOrBreak))
+                // Data only: sync it, no redraw needed
+                if (quantitiesChanged || nameChanged)
                 {
-                    sapi.Logger.Log(EnumLogType.Error, fromplayer.PlayerName + " (" + fromplayer.PlayerUID + ") has attempted a relight with Chisel Tools in a chunk they don't have access to at " + checklocation.ToLocalPosition(sapi).ToString() + ")");
-                    return;
+                    Log($"MarkDirty(false) (quantitiesChanged={quantitiesChanged} | nameChanged={nameChanged})");
+                    bmb.MarkDirty(false);
                 }
-                
-                Relight(sapi, checklocation);
+                return quantitiesChanged || nameChanged;
             }
-        }*/
+
+            // Read both before RebuildCuboidList, which reports its own absorption change if the absorbAnyLight flag flips
+            int absorption = bmb.GetLightAbsorption();
+            byte[] hsv = bmb.GetLightHsv(ba);
+            bool lightChanged = !hsv.SequenceEqual(before.Hsv);
+            string hsvChange = $"hsv {string.Join(",", before.Hsv)} -> {string.Join(",", hsv)}";
+
+            // 1. Take the old light out while the block still has its old absorption
+            if (lightChanged && before.Hsv[2] > 0)
+            {
+                Log($"RemoveBlockLight ({hsvChange})");
+                ba.RemoveBlockLight(before.Hsv, bmb.Pos);
+            }
+
+            // 2. Then report the absorption change caused by the materials
+            if (absorption != before.Absorption)
+            {
+                Log($"MarkAbsorptionChanged (absorption {before.Absorption} -> {absorption})");
+                ba.MarkAbsorptionChanged(before.Absorption, absorption, bmb.Pos);
+            }
+
+            // 3. Side solidity/AO depend on voxels, emitSideAo also on brightness
+            if (voxelsChanged || lightChanged)
+            {
+                Log($"RebuildCuboidList (voxelsChanged={voxelsChanged} | lightChanged={lightChanged})");
+                bmb.RebuildCuboidList();
+            }
+
+            // 4. Put the new light in
+            if (lightChanged && hsv[2] > 0)
+            {
+                Log($"ExchangeBlock ({hsvChange})");
+                ba.ExchangeBlock(bmb.Block.Id, bmb.Pos);
+            }
+
+            if (!lightChanged) Log($"Light unchanged ({hsvChange})");
+
+            Log("RegenSelectionBoxes");
+            bmb.RegenSelectionBoxes(bmb.Api.World, null);
+
+            if (bmb.Api.Side == EnumAppSide.Client)
+            {
+                Log("MarkMeshDirty");
+                bmb.MarkMeshDirty();
+            }
+
+            Log("MarkDirty");
+            bmb.MarkDirty(true);
+
+            if (voxelsChanged || absorption != before.Absorption)
+            {
+                Log($"TriggerNeighbourBlockUpdate (voxelsChanged={voxelsChanged} | absorption {before.Absorption} -> {absorption})");
+                ba.TriggerNeighbourBlockUpdate(bmb.Pos);
+            }
+            return true;
+        }
+
+        public static int AddMaterial(BlockEntityChisel bec, Block matblock, out bool isFull, bool compareToPickBlock = true)
+        {
+            ChiselToolLoader.MicroBlockSnapshot before = Snapshot(bec);
+            int ret = bec.AddMaterial(matblock, out isFull, compareToPickBlock);
+            UpdateBlock(bec, before);
+            return ret;
+        }
+
+        public static int AddMaterial(BlockEntityChisel bec, Block block) => AddMaterial(bec, block, out _);
+
+        public static bool UpdateChiseledBlock(BlockEntityMicroBlock bmb, int[] blockIds, List<uint> voxels, string blockName = null)
+        {
+            ChiselToolLoader.MicroBlockSnapshot before = Snapshot(bmb);
+            if (voxels != null) bmb.VoxelCuboids = voxels;
+            if (blockIds != null) bmb.BlockIds = blockIds;
+            if (blockName != null) bmb.BlockName = blockName;
+            return UpdateBlock(bmb, before);
+        }
 
         [ProtoContract(ImplicitFields = ImplicitFields.AllPublic)]
         public class ChiselToolServerData

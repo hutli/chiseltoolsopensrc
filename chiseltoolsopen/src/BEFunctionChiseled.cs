@@ -326,13 +326,9 @@ namespace chisel.src
             if (statepassable == null || !statepassable.ContainsKey(newstate)) { return; }
 
             //1.19
-            this.BlockIds = statematerials[newstate].ToArray();
-            
-            this.VoxelCuboids = statevoxels[newstate];
-
+            ChiselToolLoader.UpdateChiseledBlock(this, statematerials[newstate].ToArray(), statevoxels[newstate]);
             currentstate = newstate;
            
-            MarkDirty(true);
             if (newstate == openname)
             {
                 sapi.Network.BroadcastBlockEntityPacket(Pos, (int)enPacketCode.SETOPEN);
@@ -343,9 +339,6 @@ namespace chisel.src
                 sapi.Network.BroadcastBlockEntityPacket(Pos, (int)enPacketCode.SETCLOSE);
                 
             }
-            this.MarkMeshDirty();
-            Api.World.BlockAccessor.SetBlock(this.Block.BlockId, Pos);
-            Api.World.BlockAccessor.TriggerNeighbourBlockUpdate(Pos);
 
 
 

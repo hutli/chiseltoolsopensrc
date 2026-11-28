@@ -92,23 +92,20 @@ namespace chiseltools.src
                 if (matblock.GetCollisionBoxes(api.World.BlockAccessor, blockSel.Position) == null) { return; }
                 api.World.PlaySoundAt(new AssetLocation("game:sounds/player/knap" + (api.World.Rand.Next(2) > 0 ? 1 : 2)), byPlayer.Entity.Pos.X, byPlayer.Entity.Pos.Y, byPlayer.Entity.Pos.Z, byPlayer, true, 12, 1);
 
-                bmb.AddMaterial(matblock);
+                ChiselToolLoader.AddMaterial(bmb, matblock);
 
                 bmb.AvailMaterialQuantities = new ushort[bmb.BlockIds.Length];
                 for (int c = 0; c < bmb.BlockIds.Length; c++)
                 {
                     bmb.AvailMaterialQuantities[c] = 16 * 16 * 16;
                 }
-                
+
                 /*if (bmb.AvailMaterialQuantities != null)
                 {
                     int index = bmb.BlockIds.IndexOf(inkmat);
                     index = Math.Clamp(index, 0, bmb.BlockIds.Length);
                     bmb.AvailMaterialQuantities[index] = 16 * 16 * 16;
                 }*/
-
-                bmb.MarkDirty();
-
             }
             else
             {
@@ -134,10 +131,8 @@ namespace chiseltools.src
                 //code for checking an old map and lighting it up
                 
                 newmats[selectedmat] = inkmat;
-                bmb.BlockIds = newmats.ToArray();
+                ChiselToolLoader.UpdateChiseledBlock(bmb, newmats.ToArray(), null);
             }
-            bmb.MarkDirty(true);
-            ChiselToolLoader.Relight(api as ICoreServerAPI, blockSel.Position);
             if (api is ICoreServerAPI && byPlayer?.WorldData.CurrentGameMode != EnumGameMode.Creative)
             {
                 //Do tool wear

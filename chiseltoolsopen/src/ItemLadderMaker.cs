@@ -89,14 +89,9 @@ namespace chisel.src
             bmb = api.World.BlockAccessor.GetBlockEntity(blockSel.Position) as BlockEntityChisel;
             bmb.BlockName = copiedname + Lang.Get("chiseltools:ladder");
             //Then Paste shape and material data into new block
-            bmb.BlockIds = copiedblockmaterials.ToArray();
-            bmb.VoxelCuboids = new List<uint>(copiedblockvoxels);
-            
-            api.World.BlockAccessor.MarkBlockEntityDirty(blockSel.Position);
-            api.World.BlockAccessor.MarkBlockDirty(blockSel.Position);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, copiedblockmaterials.ToArray(), new List<uint>(copiedblockvoxels));
+
             // need our own version of this: bmb.RegenSelectionBoxes(byPlayer);
-            bmb.RegenSelectionBoxes(api.World,null);
-            bmb.MarkDirty(true);
             if (api is ICoreServerAPI && byPlayer?.WorldData.CurrentGameMode != EnumGameMode.Creative)
             {
                 int dmg = 1;

@@ -235,8 +235,7 @@ namespace chisel.src
             {
                 BlockEntityChisel bmb = api.World.BlockAccessor.GetBlockEntity(undoposition) as BlockEntityChisel;
                 if (bmb == null) { return; }
-                bmb.VoxelCuboids = new List<uint>(undovoxels);
-                bmb.MarkDirty(true);
+                ChiselToolLoader.UpdateChiseledBlock(bmb, null, new List<uint>(undovoxels));
                 undovoxels = null;
             }
         }

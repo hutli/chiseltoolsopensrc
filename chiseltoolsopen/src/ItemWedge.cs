@@ -182,8 +182,7 @@ namespace chisel.src
             {
                 BlockEntityChisel bmb = api.World.BlockAccessor.GetBlockEntity(undoposition) as BlockEntityChisel;
                 if (bmb == null) { return; }
-                bmb.VoxelCuboids = new List<uint>(undovoxels);
-                bmb.MarkDirty(true);
+                ChiselToolLoader.UpdateChiseledBlock(bmb, null, new List<uint>(undovoxels));
                 undovoxels = null;
             }
         }
@@ -311,8 +310,7 @@ namespace chisel.src
                 cuboids.Add(voxelint);
             }
             if (cuboids == null || cuboids.Count == 0) { return 0; }
-            bmb.VoxelCuboids = cuboids;
-            bmb.MarkDirty(true);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, null, cuboids);
             return 16*16; //todo calculate actual voxels based on the bounds of the cuboids
         }
         public virtual int MirrorBlock(BlockSelection blockSel)
@@ -355,8 +353,7 @@ namespace chisel.src
 
             
             if (cuboids == null || cuboids.Count == 0) { return 0; }
-            bmb.VoxelCuboids = cuboids;
-            bmb.MarkDirty(true);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, null, cuboids);
             return 16 * 16; //todo calculate actual voxels based on the bounds of the cuboids
         }
         public virtual int RotateBlock(BlockSelection blockSel)
@@ -391,8 +388,7 @@ namespace chisel.src
             }
 
             if (cuboids == null || cuboids.Count == 0) { return 0; }
-            bmb.VoxelCuboids = cuboids;
-            bmb.MarkDirty(true);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, null, cuboids);
             return 16 * 16; //todo calculate actual voxels based on the bounds of the cuboids
         }
     }

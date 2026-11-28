@@ -481,10 +481,8 @@ namespace chisel.src
                     api.World.BlockAccessor.SetBlock(cpblockid, data.pos);
                     BELockedMicroblock cbec = api.World.BlockAccessor.GetBlockEntity(data.pos) as BELockedMicroblock;
                     if (cbec == null) { return; }
-                    cbec.BlockIds = data.matdata.ToArray();
-                    cbec.VoxelCuboids = new List<uint>(data.voxeldata);
+                    ChiselToolLoader.UpdateChiseledBlock(cbec, data.matdata.ToArray(), new List<uint>(data.voxeldata));
                     cbec.SetLock(byPlayer.PlayerUID, byPlayer.PlayerName, true);
-                    cbec.MarkDirty(true);
 
                 }
                 handling = EnumHandHandling.PreventDefaultAction;
@@ -614,11 +612,23 @@ namespace chisel.src
             {
 
 
-                //MakeCopy(slot, byEntity, blockSel, entitySel, ref handling);
-                if (PasteMaterials(slot, blockSel, byPlayer))
+                // Only check and charge for the materials here; the block itself is updated in one go below
+                if (PasteMaterials(slot, blockSel, byPlayer, applyMaterials: false))
                 {
-                    bmb.VoxelCuboids = new List<uint>(copiedblockvoxels);
-                    if (copyname != "") { bmb.BlockName = copyname; }
+                    int[] mats = copiedblockmaterials.ToArray();
+
+                    // Keep AvailMaterialQuantities in step with BlockIds: existing slots keep their
+                    // quantity, new slots get a full block's worth (what AddMaterial gave them before)
+                    if (bmb is BlockEntityChisel bec && bec.AvailMaterialQuantities != null)
+                    {
+                        ushort[] q = new ushort[mats.Length];
+                        for (int i = 0; i < mats.Length; i++)
+                            q[i] = i < bec.AvailMaterialQuantities.Length ? bec.AvailMaterialQuantities[i] : (ushort)(16 * 16 * 16);
+                        bec.AvailMaterialQuantities = q;
+                    }
+
+                    ChiselToolLoader.UpdateChiseledBlock(bmb, mats, new List<uint>(copiedblockvoxels), copyname != "" ? copyname : null);
+
                     api.World.PlaySoundAt(new AssetLocation("sounds/player/chalkdraw1"), blockSel.Position.X, blockSel.Position.Y, blockSel.Position.Z, byPlayer, true, 12, 1);
                     if (api is ICoreServerAPI && byPlayer?.WorldData.CurrentGameMode != EnumGameMode.Creative)
                     {
@@ -648,9 +658,9 @@ namespace chisel.src
                         uint newb = BlockEntityMicroBlock.ToUint(cwm);
                         newcuboids.Add(newb);
                     }
-                    bmb.VoxelCuboids = newcuboids;
+                    ChiselToolLoader.UpdateChiseledBlock(bmb, null, newcuboids);
                 }
-                else { bmb.VoxelCuboids = new List<uint>(copiedblockvoxels); }
+                else { ChiselToolLoader.UpdateChiseledBlock(bmb, null, new List<uint>(copiedblockvoxels)); }
                 changedvoxels = originalvolume;
 
             }
@@ -728,8 +738,7 @@ namespace chisel.src
 
                 byte maxindex = (byte)newblockids.Count ;
                 
-                
-                bmb.BlockIds = newblockids.ToArray();
+                ChiselToolLoader.UpdateChiseledBlock(bmb, newblockids.ToArray(), null);
                 //cycle thru source cuboids - turn into individual voxels, add to destination object
                 foreach (uint su in copiedblockvoxels)
                 {
@@ -990,8 +999,7 @@ namespace chisel.src
 
 
             if (cuboids == null || cuboids.Count == 0) { return 0; }
-            bmb.VoxelCuboids = cuboids;
-            bmb.MarkDirty(true);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, null, cuboids);
             return 16 * 16; //todo calculate actual voxels based on the bounds of the cuboids
         }
         public bool TryChangeBlockToChisel(BlockSelection blockSel, Entity byEntity, IPlayer byPlayer)
@@ -1093,10 +1101,7 @@ namespace chisel.src
                     if (bmb == null||bmb.VoxelCuboids==null) { undovoxels = null; }
                     else
                     {
-                        bmb.VoxelCuboids = new List<uint>(undovoxels);
-                        if (undomats != null) { bmb.BlockIds = undomats.ToArray(); }
-                        bmb.MarkDirty(true);
-                        
+                        ChiselToolLoader.UpdateChiseledBlock(bmb, undomats?.ToArray(), undovoxels);
                     }
                 }
 
@@ -1227,7 +1232,9 @@ namespace chisel.src
         /// </summary>
         /// <param name="slot"></param>
         /// <param name="blockSel"></param>
-        bool PasteMaterials(ItemSlot slot, BlockSelection blockSel, IPlayer byPlayer)
+        /// <param name="byPlayer"></param>
+        /// <param name="applyMaterials"></param>
+        bool PasteMaterials(ItemSlot slot, BlockSelection blockSel, IPlayer byPlayer, bool applyMaterials = true)
         {
             
             if (slot == null || blockSel == null || byPlayer == null) return false;
@@ -1431,8 +1438,9 @@ namespace chisel.src
             //CuboidWithMaterial cwm = new CuboidWithMaterial();
             //BlockEntityMicroBlock.FromUint(bmb, cwm);
             //replace or add materials
-            if (api is ICoreServerAPI)
+            if (applyMaterials)
             {
+                ChiselToolLoader.MicroBlockSnapshot before = ChiselToolLoader.Snapshot(bmb);
                 for (int c = 0; c < copiedmaterials.Count(); c++)
                 {
                     //first copy what fits
@@ -1451,8 +1459,7 @@ namespace chisel.src
                         
                     }
                 }
-                bmb.MarkDirty(true);
-                ChiselToolLoader.Relight(api as ICoreServerAPI,blockSel.Position);
+                ChiselToolLoader.UpdateBlock(bmb, before);
             }
             return true;
         }
@@ -1669,6 +1676,7 @@ namespace chisel.src
             //replace or add materials
             if (api is ICoreServerAPI)
             {
+                ChiselToolLoader.MicroBlockSnapshot before = ChiselToolLoader.Snapshot(bmb);
                 for (int c = 0; c < copiedmaterials.Count(); c++)
                 {
                     //first copy what fits
@@ -1687,8 +1695,7 @@ namespace chisel.src
 
                     }
                 }
-                bmb.MarkDirty(true);
-                ChiselToolLoader.Relight(api as ICoreServerAPI, blockSel.Position);
+                ChiselToolLoader.UpdateBlock(bmb, before);
             }
             return true;
         }
@@ -2133,8 +2140,7 @@ namespace chisel.src
                 cuboids.Add(voxelint);
             }
             if (cuboids == null || cuboids.Count == 0) { return 0; }
-            bmb.VoxelCuboids = cuboids;
-            bmb.MarkDirty(true);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, null, cuboids);
             return 16 * 16; //todo calculate actual voxels based on the bounds of the cuboids
         }
         public virtual int MirrorBlock(BlockSelection blockSel)
@@ -2177,8 +2183,7 @@ namespace chisel.src
 
 
             if (cuboids == null || cuboids.Count == 0) { return 0; }
-            bmb.VoxelCuboids = cuboids;
-            bmb.MarkDirty(true);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, null, cuboids);
             return 16 * 16; //todo calculate actual voxels based on the bounds of the cuboids
         }
         public virtual int RotateBlock(BlockSelection blockSel)
@@ -2213,8 +2218,7 @@ namespace chisel.src
             }
 
             if (cuboids == null || cuboids.Count == 0) { return 0; }
-            bmb.VoxelCuboids = cuboids;
-            bmb.MarkDirty(true);
+            ChiselToolLoader.UpdateChiseledBlock(bmb, null, cuboids);
             return 16 * 16; //todo calculate actual voxels based on the bounds of the cuboids
         }
     }

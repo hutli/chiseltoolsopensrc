@@ -89,21 +89,24 @@ namespace chiseltools.src
                 newCuboids.Add(BlockEntityMicroBlock.ToUint(cwm));
 
             }
-            bec.VoxelCuboids = newCuboids; //replace old cuboids with new duplicate removed list
 
             List<byte> usedMaterial = new List<byte>(); //this is a list of references, not blockids!
             List<int> usedBlockIDs = new List<int>(); //this is a list of block IDs
             Dictionary<byte, int> MaterialIndexReference = new Dictionary<byte, int>();
 
 
-            foreach (uint v in bec.VoxelCuboids)
+            foreach (uint v in newCuboids)
             {
                 CuboidWithMaterial cwm = new CuboidWithMaterial();
                 BlockEntityMicroBlock.FromUint(v, cwm);
                 if (cwm == null) continue;
                 if (!MaterialIndexReference.ContainsKey(cwm.Material)) { MaterialIndexReference[cwm.Material] = bec.BlockIds[cwm.Material]; }
             }
-            if (MaterialIndexReference.Keys.Count== bec.BlockIds.Length) { return false; } //everything was used do nothing
+            if (MaterialIndexReference.Keys.Count== bec.BlockIds.Length)
+            {
+                ChiselToolLoader.UpdateChiseledBlock(bec, null, newCuboids);
+                return false;
+            }
             //now we need to figure out what wasn't used
             //then figure out what indices need to change, maybe build a new list?
             List<byte> crossreference = new List<byte>();
@@ -114,7 +117,7 @@ namespace chiseltools.src
                 crossreference.Add((byte)bec.BlockIds.IndexOf(newmats[c]));
             }
             List<uint> newvox = new List<uint>();
-            foreach (uint v in bec.VoxelCuboids)
+            foreach (uint v in newCuboids)
             {
                 CuboidWithMaterial cwm = new CuboidWithMaterial();
                 BlockEntityMicroBlock.FromUint(v, cwm);
@@ -122,17 +125,12 @@ namespace chiseltools.src
                 newvox.Add(BlockEntityMicroBlock.ToUint(cwm));
             }
             
-            bec.BlockIds= newmats; 
-            bec.VoxelCuboids= newvox;
+            ChiselToolLoader.UpdateChiseledBlock(bec, newmats, newvox);
             if (byEntity.Api is ICoreClientAPI)
-            {
-                
-                bec.RegenMesh(byEntity.Api as ICoreClientAPI);
-               
+            {               
                 PantographData pd = new PantographData(byEntity.Api,bec);
                 (ChiselToolLoader.loader.chiselnet as IClientNetworkChannel).SendPacket<PantographData>(pd);
             }
-            bec.MarkDirty(true);
             
             return true;
 
